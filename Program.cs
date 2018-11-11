@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Net;
 
 namespace NamingServer
 {
@@ -6,7 +7,19 @@ namespace NamingServer
     {
         public static void Main(string[] args)
         {
-            Console.WriteLine("Hello World!");
+            Console.Write("IP to start naming server on: ");
+            string address = Console.ReadLine();
+            IPAddress ipAddress;
+            if (IPAddress.TryParse(address, out ipAddress))
+            {
+                NameServer server = new NameServer(ipAddress);
+                server.StartServer();
+            }
+            else
+            {
+                Console.WriteLine("Not a valid IP address.");
+            }
+            Console.ReadLine();
         }
     }
 }
