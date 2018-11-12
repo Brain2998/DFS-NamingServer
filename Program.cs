@@ -1,24 +1,17 @@
 ﻿using System;
 using System.Net;
+using Nancy.Hosting.Self;
 
 namespace NamingServer
 {
     class MainClass
     {
+
         public static void Main(string[] args)
         {
-            Console.Write("IP to start naming server on: ");
-            string address = Console.ReadLine();
-            IPAddress ipAddress;
-            if (IPAddress.TryParse(address, out ipAddress))
-            {
-                NameServer server = new NameServer(ipAddress);
-                server.StartServer();
-            }
-            else
-            {
-                Console.WriteLine("Not a valid IP address.");
-            }
+            NancyHost host = new NancyHost(new Uri("http://localhost:33033"), new Bootstrapper());
+            host.Start();
+            Console.WriteLine("Naming server started.");
             Console.ReadLine();
         }
     }

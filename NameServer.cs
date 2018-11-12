@@ -54,7 +54,7 @@ namespace NamingServer
                 int received = Client.EndReceive(asyncResult);
                 byte[] dataBuf = new byte[received];
                 Array.Copy(buffer, dataBuf, received);
-                string clientHello = Encoding.ASCII.GetString(dataBuf);
+                string clientHello = Encoding.UTF8.GetString(dataBuf);
                 Console.WriteLine(clientHello);
                 Client.BeginReceive(buffer, 0, buffer.Length, SocketFlags.None, new AsyncCallback(ReceiveCallback), null);
             }
