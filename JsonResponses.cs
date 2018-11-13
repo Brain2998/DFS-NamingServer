@@ -12,21 +12,7 @@ namespace NamingServer
             dynamic dirJson = new JObject();
             dirJson.name = directory.Name;
             dirJson.parentPath = directory.ParentPath;
-            if (directory.Name == "/")
-            {
-                dirJson.currentPath = "/";
-            }
-            else
-            {
-                if (directory.ParentPath == "/")
-                {
-                    dirJson.currentPath = directory.ParentPath + directory.Name;
-                }
-                else
-                {
-                    dirJson.currentPath = directory.ParentPath + "/" + directory.Name;
-                }
-            }
+            dirJson.currentPath = directory.CurrentPath;
             dirJson.items = new JArray();
             foreach (KeyValuePair<string, Directory>subdir in directory.Directories)
             {
@@ -35,12 +21,13 @@ namespace NamingServer
                 item.type = "dir";
                 dirJson.items.Add(item);
             }
-            foreach (KeyValuePair<string, File> file in directory.Files)
+            foreach (KeyValuePair<string, DirFile> file in directory.Files)
             {
                 dynamic item = new JObject();
                 item.name = file.Key;
                 item.type = "file";
                 item.address = file.Value.Address;
+                item.reserveAddress = file.Value.ReserveAddress;
                 dirJson.items.Add(item);
             }
             return dirJson.ToString();
