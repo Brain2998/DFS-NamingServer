@@ -17,13 +17,14 @@ namespace NamingServer
             {
                 conn.Open();
                 SQLiteCommand dbQuery = conn.CreateCommand();
-                ExecuteNonQuery("CREATE TABLE IF NOT EXISTS dirs(curr_path TEXT, name TEXT, parent_path TEXT, file_id INTEGER, PRIMARY KEY(curr_path)); " +
-                             "CREATE TABLE IF NOT EXISTS files(id INTEGER, path TEXT, name TEXT, addr TEXT, reserv_addr TEXT, PRIMARY KEY(path, name), FOREIGN KEY(id) REFERENCES dirs(file_id)); " +
-                                "CREATE TABLE IF NOT EXISTS storages(id TEXT, ip TEXT, port TEXT, free_space TEXT, PRIMARY KEY(id))");
+                ExecuteNonQuery("CREATE TABLE IF NOT EXISTS dirs(curr_path TEXT, name TEXT, parent_path TEXT, PRIMARY KEY(curr_path)); " +
+                             "CREATE TABLE IF NOT EXISTS files(full_path TEXT, dir_path TEXT, name TEXT, addr TEXT, reserv_addr TEXT, size TEXT, PRIMARY KEY(full_path)); " +
+                                "CREATE TABLE IF NOT EXISTS storages(id TEXT, ip TEXT, port TEXT, free_space TEXT, PRIMARY KEY(id));" +
+                                "CREATE TABLE IF NOT EXISTS file_to_dir(dir_path TEXT, file_path TEXT, PRIMARY KEY(dir_path, file_path));");
             }
             catch (SQLiteException err)
             {
-                Console.WriteLine(err.Message);
+                Console.WriteLine("DB initialization: "+err.Message);
             }
         }
 
@@ -37,7 +38,7 @@ namespace NamingServer
             }
             catch (SQLiteException err)
             {
-                Console.WriteLine(err.Message);
+                Console.WriteLine("ExecuteNonQuery: "+err.Message);
             }
         }
 
@@ -57,7 +58,7 @@ namespace NamingServer
             }
             catch (SQLiteException err)
             {
-                Console.WriteLine(err.Message);
+                Console.WriteLine("GetDirsFromDB: "+err.Message);
             }
             return dirs;
         }
@@ -67,14 +68,102 @@ namespace NamingServer
             SQLiteCommand dbQuery = conn.CreateCommand();
             dbQuery.CommandText = "SELECT * from storages WHERE ip='" + ip + "' AND port='" + port + "'";
             SQLiteDataReader reader = dbQuery.ExecuteReader();
+            bool RC;
             if (reader.Read())
             {
-                return true;
+                RC=true;
             }
             else 
             {
-                return false;
+                RC=false;
             }
+            reader.Close();
+            return RC;
+        }
+
+        public string ChooseStorage(string reqSpace)
+        {
+            string storage="";
+            SQLiteCommand dbQuery = conn.CreateCommand();
+            dbQuery.CommandText = "SELECT ip, port FROM storages WHERE free_space +0 > "+reqSpace+" ORDER BY free_space +0 DESC";
+            SQLiteDataReader reader = dbQuery.ExecuteReader();
+            try
+            {
+                if (reader.Read())
+                {
+                    storage= reader["ip"].ToString() + ":" + reader["port"].ToString();
+                }
+                else
+                {
+                    throw new Exception("No storage servers available.");
+                }
+            }
+            catch (SQLiteException err)
+            {
+                Console.WriteLine("ChooseStorage: " + err.Message);
+            }
+            reader.Close();
+            return storage;
+        }
+
+        public string UpdateStorageFreeSpace(string id, string newSpace)
+        {
+            Int64 oldSpaceInt=0;
+            Int64 newSpaceInt = 0;
+            Int64.TryParse(newSpace, out newSpaceInt);
+            SQLiteCommand dbQuery = conn.CreateCommand();
+            dbQuery.CommandText = "SELECT free_space FROM storages WHERE id='" + id + "'";
+            SQLiteDataReader reader = dbQuery.ExecuteReader();
+            if (reader.Read())
+            {
+                //Console.WriteLine(reader["free_space"]);
+                Int64.TryParse(reader["free_space"].ToString(), out oldSpaceInt);
+            }
+            reader.Close();
+            FileSystem.db.ExecuteNonQuery("UPDATE storages SET free_space='" + newSpace + "' WHERE id='" + id + "'");
+            return (Math.Abs(oldSpaceInt - newSpaceInt)).ToString();
+        }
+
+        public string GetStorageAddressById(string id)
+        {
+            string storageAddr = "";
+            SQLiteCommand dbQuery = conn.CreateCommand();
+            dbQuery.CommandText = "SELECT ip, port FROM storages WHERE id='" + id + "'";
+            SQLiteDataReader reader = dbQuery.ExecuteReader();
+            try
+            {
+                if (reader.Read())
+                {
+                    storageAddr = reader["ip"].ToString() + ":" + reader["port"].ToString();
+                }
+                reader.Close();
+            }
+            catch (SQLiteException err)
+            {
+                Console.WriteLine("GetStorageById: " + err.Message);
+            }
+            return storageAddr;
+        }
+
+        public List<DirFile> GetFilesFromDB(string condition)
+        {
+            List<DirFile> files = new List<DirFile>();
+            SQLiteCommand dbQuery = conn.CreateCommand();
+            dbQuery.CommandText = "SELECT * from files WHERE " + condition;
+            SQLiteDataReader reader = dbQuery.ExecuteReader();
+            try
+            {
+                while (reader.Read())
+                {
+                    files.Add(new DirFile(reader["name"].ToString(), reader["addr"].ToString(), reader["size"].ToString()));
+                }
+                reader.Close();
+            }
+            catch (SQLiteException err)
+            {
+                Console.WriteLine("GetFilesFromDB: " + err.Message);
+            }
+            return files;
         }
 
         public void CloseConnection()

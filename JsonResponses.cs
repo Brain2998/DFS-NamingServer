@@ -28,9 +28,17 @@ namespace NamingServer
                 item.type = "file";
                 item.address = file.Value.Address;
                 item.reserveAddress = file.Value.ReserveAddress;
+                item.size = file.Value.Size;
                 dirJson.items.Add(item);
             }
             return dirJson.ToString();
+        }
+
+        public static string GetStorageToUpload(string storage)
+        {
+            dynamic storJson = new JObject();
+            storJson.mainStorage = storage;
+            return storJson.ToString();
         }
     }
 }

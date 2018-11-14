@@ -12,10 +12,15 @@ namespace NamingServer
         {
             Directory currDir = startDir;
             List<Directory> Dirs = db.GetDirsFromDB("parent_path='" + currDir.CurrentPath+"'");
+            List<DirFile> Files = db.GetFilesFromDB("full_path IN (SELECT file_path FROM file_to_dir WHERE dir_path='"+currDir.CurrentPath+"')");
             for (int i = 0; i < Dirs.Count; ++i)
             {
                 currDir.Directories.Add(Dirs[i].Name, Dirs[i]);
                 FillDirsFromDB(Dirs[i]);
+            }
+            for (int i = 0; i < Files.Count; ++i)
+            {
+                currDir.Files.Add(Files[i].Name, Files[i]);
             }
         }
 
@@ -47,11 +52,6 @@ namespace NamingServer
                 return endDir;
             }
         }
-
-        /*public static string AddFile(string path, string name)
-        {
-
-        }*/
     }
 
     public class Directory
@@ -111,16 +111,37 @@ namespace NamingServer
             FileSystem.db.ExecuteNonQuery("DELETE FROM dirs WHERE curr_path='" + deletedDir.CurrentPath + "')");
             Directories.Remove(deletedName);
         }
+
+        public void RegFile(string name, string size, string storageId)
+        {
+            string mainAddress = FileSystem.db.GetStorageAddressById(storageId);
+            string filePath;
+            if (CurrentPath == "/")
+            {
+                filePath = CurrentPath + name;
+            }
+            else
+            {
+                filePath = CurrentPath + "/" + name;
+            }
+            Files.Add(name, new DirFile(name, mainAddress, size));
+            //select reserve server
+            FileSystem.db.ExecuteNonQuery("INSERT INTO files(full_path, dir_path, name, addr, size) VALUES ('" + filePath + "', '" + CurrentPath + "', '"+name+"', '" + mainAddress + "', '" + size + "')");
+            FileSystem.db.ExecuteNonQuery("INSERT INTO file_to_dir(dir_path, file_path) VALUES ('" + CurrentPath + "', '" + filePath + "')");
+        }
     }
 
     public class DirFile
     {
-        public DirFile(string name)
+        public DirFile(string name, string address, string size)
         {
             Name = name;
+            Address = address;
+            Size = size;
         }
         public string Name { get; set; }
         public string Address { get; set; }
         public string ReserveAddress { get; set; }
+        public string Size { get; set; }
     }
 }

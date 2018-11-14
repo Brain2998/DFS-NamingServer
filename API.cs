@@ -31,7 +31,7 @@ namespace NamingServer
                 }
                 catch (Exception err)
                 {
-                    Console.WriteLine(err.Message);
+                    Console.WriteLine("list: "+err.Message);
                     return 404;
                 }
             };
@@ -46,14 +46,7 @@ namespace NamingServer
                 }
                 catch (Exception err)
                 {
-                    if (err.InnerException != null)
-                    {
-                        Console.WriteLine("Error in creation: " + err.InnerException.Message);
-                    }
-                    else
-                    {
-                        Console.WriteLine("Error in creation: " + err.Message);
-                    }
+                    Console.WriteLine("createDir: " + err.Message);
                     return 500;
                 }
             };
@@ -67,10 +60,29 @@ namespace NamingServer
                 }
                 catch (Exception err)
                 {
-                    Console.WriteLine(err.Message);
+                    Console.WriteLine("delDir: "+err.Message);
                     return 404;
                 }
             };
+            Get["/uploadFile"] = param =>
+            {
+                try
+                {   
+                    return JsonResponses.GetStorageToUpload(FileSystem.db.ChooseStorage(Request.Query["size"]));
+                }
+                catch (Exception err)
+                {
+                    Console.WriteLine("uploadFile: "+err.Message);
+                    return 500;
+                }
+            };
+        }
+    }
+
+    public class StorageAPI : NancyModule
+    {
+        public StorageAPI()
+        {
             Get["/storageReg"] = param =>
             {
                 try
@@ -83,13 +95,13 @@ namespace NamingServer
                     }
                     else
                     {
-                        return 409;
+                        return 500;
                     }
                 }
                 catch (Exception err)
                 {
-                    Console.WriteLine(err.Message);
-                    return 500;
+                    Console.WriteLine("storageReg: " + err.Message);
+                    return 409;
                 }
             };
             Get["/storageConn"] = param =>
@@ -101,20 +113,20 @@ namespace NamingServer
                 }
                 catch (Exception err)
                 {
-                    Console.WriteLine(err.Message);
+                    Console.WriteLine("storageConn: " + err.Message);
                     return 500;
                 }
             };
-            Get["/uploadFile"] = param =>
+            Get["/fileReg"] = param =>
             {
                 try
                 {
-                        
+                    Directory dir = FileSystem.GetDirectory(Request.Query["path"]);
+                    dir.RegFile(Request.Query["name"], FileSystem.db.UpdateStorageFreeSpace(Request.Query["id"], Request.Query["free_space"]), Request.Query["id"]);
                     return 200;
                 }
-                catch (Exception err)
+                catch
                 {
-                    Console.WriteLine(err.Message);
                     return 500;
                 }
             };

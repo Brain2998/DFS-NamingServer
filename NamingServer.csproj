@@ -63,7 +63,7 @@
   <ItemGroup>
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
-    <Compile Include="ClientAPI.cs" />
+    <Compile Include="API.cs" />
     <Compile Include="FileSystem.cs" />
     <Compile Include="JsonResponses.cs" />
     <Compile Include="DataBase.cs" />
