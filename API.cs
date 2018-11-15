@@ -81,20 +81,6 @@ namespace NamingServer
                     return 500;
                 }
             };
-            /*Get["/delFile"] = param =>
-            {
-                try
-                {
-                    Directory directory = FileSystem.GetDirectory(Request.Query["path"]);
-                    directory.DeleteFile(Request.Query("name"));
-                    return 200;
-                }
-                catch (Exception err)
-                {
-                    Console.WriteLine("delFile: " + err.Message);
-                    return 500;
-                }
-            };*/
             Get["/delFile"] = param =>
             {
                 try
