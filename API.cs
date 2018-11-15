@@ -1,5 +1,8 @@
 ﻿using System;
 using Nancy;
+using System.Net.Http;
+using System.Net;
+using System.IO;
 
 namespace NamingServer
 {
@@ -41,7 +44,6 @@ namespace NamingServer
                 {
                     Directory penDir = FileSystem.GetDirectory(Request.Query["path"]);
                     penDir.CreateSubDir(Request.Query["name"]);
-                    Console.WriteLine("Created dir "+Request.Query["path"] + Request.Query["name"]);
                     return 200;
                 }
                 catch (Exception err)
@@ -58,9 +60,12 @@ namespace NamingServer
                     penDir.DeleteSubDir(Request.Query["name"]);
                     return 200;
                 }
-                catch (Exception err)
+                catch (Exception e)
                 {
-                    Console.WriteLine("delDir: "+err.Message);
+                    if (e.InnerException != null)
+                        Console.WriteLine("Error in directory deletion: " + e.Message + "\nInner Exception: " + e.InnerException.Message);
+                    else
+                        Console.WriteLine("Error in directory deletion: " + e.Message);
                     return 404;
                 }
             };
@@ -73,6 +78,34 @@ namespace NamingServer
                 catch (Exception err)
                 {
                     Console.WriteLine("uploadFile: "+err.Message);
+                    return 500;
+                }
+            };
+            /*Get["/delFile"] = param =>
+            {
+                try
+                {
+                    Directory directory = FileSystem.GetDirectory(Request.Query["path"]);
+                    directory.DeleteFile(Request.Query("name"));
+                    return 200;
+                }
+                catch (Exception err)
+                {
+                    Console.WriteLine("delFile: " + err.Message);
+                    return 500;
+                }
+            };*/
+            Get["/delFile"] = param =>
+            {
+                try
+                {
+                    Directory directory = FileSystem.GetDirectory(Request.Query["path"]);
+                    directory.DeleteFile(Request.Query["name"]);
+                    return 200;
+                }
+                catch (Exception err)
+                {
+                    Console.WriteLine("delFile: " + err.Message);
                     return 500;
                 }
             };
@@ -130,6 +163,21 @@ namespace NamingServer
                     return 500;
                 }
             };
+        }
+
+        public static int GetRequest(string address, string uri)
+        {
+            HttpWebRequest http = (HttpWebRequest)WebRequest.Create("http://" + address + "/" + uri);
+            HttpWebResponse response = null;
+            try
+            {
+                response = (HttpWebResponse)http.GetResponse();
+            }catch (WebException e){
+                response = (HttpWebResponse)e.Response;
+            }
+            int status = (int)response.StatusCode;
+            response.Dispose();
+            return status;
         }
     }
 }

@@ -108,7 +108,18 @@ namespace NamingServer
                 throw new Exception("No such directory");
             }
             Directory deletedDir = Directories[deletedName];
-            FileSystem.db.ExecuteNonQuery("DELETE FROM dirs WHERE curr_path='" + deletedDir.CurrentPath + "')");
+            List<string> dirStorages = GetDirStorages(deletedDir);
+            for (int i = 0; i < dirStorages.Count; ++i)
+            {
+                int response = StorageAPI.GetRequest(dirStorages[i], "/api/name/deletedir?path=" + deletedDir.CurrentPath);
+                if (!(response == 200 || response == 404))
+                {
+                    throw new Exception("Error in removing directory");
+                }
+            }
+            FileSystem.db.ExecuteNonQuery("DELETE FROM files WHERE dir_path='"+deletedDir.CurrentPath+"'");
+            FileSystem.db.ExecuteNonQuery("DELETE FROM file_to_dir WHERE dir_path='"+deletedDir.CurrentPath+"'");
+            FileSystem.db.ExecuteNonQuery("DELETE FROM dirs WHERE curr_path='" + deletedDir.CurrentPath + "'");
             Directories.Remove(deletedName);
         }
 
@@ -128,6 +139,56 @@ namespace NamingServer
             //select reserve server
             FileSystem.db.ExecuteNonQuery("INSERT INTO files(full_path, dir_path, name, addr, size) VALUES ('" + filePath + "', '" + CurrentPath + "', '"+name+"', '" + mainAddress + "', '" + size + "')");
             FileSystem.db.ExecuteNonQuery("INSERT INTO file_to_dir(dir_path, file_path) VALUES ('" + CurrentPath + "', '" + filePath + "')");
+        }
+
+        public List<string> GetDirStorages(Directory directory)
+        {
+            List<string> storages = new List<string>();
+            foreach (KeyValuePair<string, DirFile> file in directory.Files)
+            {
+                if (!storages.Contains(file.Value.Address))
+                {
+                    storages.Add(file.Value.Address);
+                }
+                if (file.Value.ReserveAddress!=null && !storages.Contains(file.Value.ReserveAddress))
+                {
+                    storages.Add(file.Value.ReserveAddress);
+                }
+            }
+            return storages;
+        }
+
+        public void DeleteFile(string fileName)
+        {
+            if (!Files.ContainsKey(fileName))
+            {
+                throw new Exception("No such file");
+            }
+            string full_path;
+            if (CurrentPath=="/")
+            {
+                full_path = CurrentPath + fileName;
+            }
+            else
+            {
+                full_path = CurrentPath + "/" + fileName;
+            }
+            int response = StorageAPI.GetRequest(Files[fileName].Address, "api/name/delete?path=" + full_path);
+            if (!(response == 200 || response == 404))
+            {
+                throw new Exception("Error in removing file");
+            }
+            if (Files[fileName].ReserveAddress!=null)
+            {
+                response = StorageAPI.GetRequest(Files[fileName].ReserveAddress, "api/name/delete?path=" + full_path);
+                if (!(response == 200 || response == 404))
+                {
+                    throw new Exception("Error in removing file");
+                }
+            }
+            FileSystem.db.ExecuteNonQuery("DELETE FROM files WHERE full_path='"+full_path+"'");
+            FileSystem.db.ExecuteNonQuery("DELETE FROM file_to_dir WHERE file_path='" + full_path + "'");
+            Files.Remove(fileName);
         }
     }
 
