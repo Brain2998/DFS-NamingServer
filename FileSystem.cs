@@ -135,10 +135,21 @@ namespace NamingServer
             {
                 filePath = CurrentPath + "/" + name;
             }
-            Files.Add(name, new DirFile(name, mainAddress, size));
-            //select reserve server
-            FileSystem.db.ExecuteNonQuery("INSERT INTO files(full_path, dir_path, name, addr, size) VALUES ('" + filePath + "', '" + CurrentPath + "', '"+name+"', '" + mainAddress + "', '" + size + "')");
-            FileSystem.db.ExecuteNonQuery("INSERT INTO file_to_dir(dir_path, file_path) VALUES ('" + CurrentPath + "', '" + filePath + "')");
+            string reserveAddress = FileSystem.db.ChooseStorage(size, storageId);
+            //попробовать загрузить на несколько бэкап серверов и если не получится загрузить только на основной
+            int response=StorageAPI.GetRequest(reserveAddress, "api/name/replicate?path=" + CurrentPath + "&name=" + name + "&target=" + mainAddress);
+            if (response == 200)
+            {
+                Files.Add(name, new DirFile(name, mainAddress, size));
+                Files[name].ReserveAddress = reserveAddress;
+                //обновить размер фри спейс бэкапа
+                FileSystem.db.ExecuteNonQuery("INSERT INTO files(full_path, dir_path, name, addr, size, reserv_addr) VALUES ('" + filePath + "', '" + CurrentPath + "', '" + name + "', '" + mainAddress + "', '" + size + "', '"+reserveAddress+"')");
+                FileSystem.db.ExecuteNonQuery("INSERT INTO file_to_dir(dir_path, file_path) VALUES ('" + CurrentPath + "', '" + filePath + "')");
+            }
+            else
+            {
+                throw new Exception("Error in replicating file");
+            }
         }
 
         public List<string> GetDirStorages(Directory directory)

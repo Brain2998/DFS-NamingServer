@@ -73,7 +73,7 @@ namespace NamingServer
             {
                 try
                 {   
-                    return JsonResponses.GetStorageToUpload(FileSystem.db.ChooseStorage(Request.Query["size"]));
+                    return JsonResponses.GetStorageToUpload(FileSystem.db.ChooseStorage(Request.Query["size"], ""));
                 }
                 catch (Exception err)
                 {
@@ -144,8 +144,9 @@ namespace NamingServer
                     dir.RegFile(Request.Query["name"], FileSystem.db.UpdateStorageFreeSpace(Request.Query["id"], Request.Query["free_space"]), Request.Query["id"]);
                     return 200;
                 }
-                catch
+                catch (Exception err)
                 {
+                    Console.WriteLine("storageConn: " + err.Message);
                     return 500;
                 }
             };

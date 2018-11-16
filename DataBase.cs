@@ -81,11 +81,11 @@ namespace NamingServer
             return RC;
         }
 
-        public string ChooseStorage(string reqSpace)
+        public string ChooseStorage(string reqSpace, string id)
         {
             string storage="";
             SQLiteCommand dbQuery = conn.CreateCommand();
-            dbQuery.CommandText = "SELECT ip, port FROM storages WHERE free_space +0 > "+reqSpace+" ORDER BY free_space +0 DESC";
+            dbQuery.CommandText = "SELECT ip, port FROM storages WHERE id !='"+id+"' AND free_space +0 > "+reqSpace+" ORDER BY free_space +0 DESC";
             SQLiteDataReader reader = dbQuery.ExecuteReader();
             try
             {
