@@ -11,14 +11,15 @@ namespace NamingServer
         {
             dynamic dirJson = new JObject();
             dirJson.name = directory.Name;
-            dirJson.parentPath = directory.ParentPath;
-            dirJson.currentPath = directory.CurrentPath;
+            dirJson.parentPath = FileSystem.GetUserPathFromFull(directory.Owner, directory.ParentPath);
+            dirJson.currentPath = FileSystem.GetUserPathFromFull(directory.Owner, directory.CurrentPath);
             dirJson.items = new JArray();
             foreach (KeyValuePair<string, Directory>subdir in directory.Directories)
             {
                 dynamic item = new JObject();
                 item.name = subdir.Key;
                 item.type = "dir";
+                item.owner = subdir.Value.Owner;
                 dirJson.items.Add(item);
             }
             foreach (KeyValuePair<string, DirFile> file in directory.Files)
@@ -26,12 +27,32 @@ namespace NamingServer
                 dynamic item = new JObject();
                 item.name = file.Key;
                 item.type = "file";
+                item.owner = file.Value.Owner;
                 item.address = file.Value.Address;
                 item.reserveAddress = file.Value.ReserveAddress;
                 item.size = SizeSuffix(file.Value.Size);
                 dirJson.items.Add(item);
             }
             return dirJson.ToString();
+        }
+
+        public static string GetUserLog(string user)
+        {
+            dynamic logJson = new JObject();
+
+            var logs = FileSystem.db.GetLog(user);
+            logJson.items = new JArray();
+            for (int i = logs.Count - 1; i >= 0;--i)
+            {
+                dynamic item = new JObject();
+                item.path = logs[i][0];
+                item.user = logs[i][1];
+                item.time = logs[i][2];
+                item.action = logs[i][3];
+                logJson.items.Add(item);
+            }
+
+            return logJson.ToString();
         }
 
         public static string GetStorageToUpload(string storage)

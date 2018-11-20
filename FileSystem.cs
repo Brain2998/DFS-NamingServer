@@ -46,10 +46,34 @@ namespace NamingServer
                     }
                     else
                     {
-                        throw new Exception();
+                        throw new Exception("No such directory");
                     }
                 }
                 return endDir;
+            }
+        }
+
+        public static string GetFullPathFromUser(string userName, string path)
+        {
+            if (path == "/")
+            {
+                return "/" + userName;
+            }
+            else
+            {
+                return "/" + userName + path;
+            }
+        }
+
+        public static string GetUserPathFromFull(string userName, string path)
+        {
+            if (path == "/" + userName || path=="/")
+            {
+                return "/";
+            }
+            else
+            {
+                return path.Remove(0, userName.Length + 1);
             }
         }
     }
@@ -59,6 +83,7 @@ namespace NamingServer
         public string Name { get; set; }
         public string ParentPath { get; set; }
         public string CurrentPath { get; set; }
+        public string Owner { get; set; }
         public Dictionary<string, Directory> Directories = new Dictionary<string, Directory>();
         public Dictionary<string, DirFile> Files = new Dictionary<string, DirFile>();
 
@@ -69,36 +94,35 @@ namespace NamingServer
             CurrentPath = currentPath;
         }
 
-        public void CreateSubDir(string isertedName)
+        public void CreateSubDir(string insertedName, string ownerName)
         {
-            if (Directories.ContainsKey(isertedName))
+            if (Directories.ContainsKey(insertedName))
             {
                 throw new Exception("Directory already exist");
             }
-            if (isertedName=="" || isertedName=="/")
+            if (insertedName=="" || insertedName=="/")
             {
                 throw new Exception("Can not create directory with specified name");
             }
             Directory insertedDir;
             if (Name == "/")
             {
-                insertedDir = new Directory(isertedName, Name, Name+isertedName);
-                Directories.Add(isertedName, insertedDir);
+                insertedDir = new Directory(insertedName, Name, Name+insertedName);
             }
             else
             {
                 if (ParentPath == "/")
                 {
-                    insertedDir = new Directory(isertedName, ParentPath+Name, ParentPath+Name+"/"+isertedName);
-                    Directories.Add(isertedName, insertedDir);
+                    insertedDir = new Directory(insertedName, ParentPath+Name, ParentPath+Name+"/"+insertedName);
                 }
                 else
                 {
-                    insertedDir = new Directory(isertedName, ParentPath + "/" + Name, ParentPath + "/" + Name+"/"+isertedName);
-                    Directories.Add(isertedName, insertedDir);
+                    insertedDir = new Directory(insertedName, ParentPath + "/" + Name, ParentPath + "/" + Name+"/"+insertedName);
                 }
             }
-            FileSystem.db.ExecuteNonQuery("INSERT INTO dirs(curr_path, name, parent_path) VALUES ('"+insertedDir.CurrentPath+"', '"+insertedDir.Name+"', '"+insertedDir.ParentPath+"')");
+            insertedDir.Owner = ownerName;
+            Directories.Add(insertedName, insertedDir);
+            FileSystem.db.ExecuteNonQuery("INSERT INTO dirs(curr_path, name, parent_path, owner) VALUES ('"+insertedDir.CurrentPath+"', '"+insertedDir.Name+"', '"+insertedDir.ParentPath+"', '"+ownerName+"')");
         }
 
         public void DeleteSubDir(string deletedName)
@@ -111,7 +135,7 @@ namespace NamingServer
             List<string> dirStorages = GetDirStorages(deletedDir);
             for (int i = 0; i < dirStorages.Count; ++i)
             {
-                int response = StorageAPI.GetRequest(dirStorages[i], "/api/name/deletedir?path=" + deletedDir.CurrentPath);
+                int response = StorageAPI.GetRequest(dirStorages[i], "/api/name/deletedir?path=" + FileSystem.GetUserPathFromFull(deletedDir.Owner, deletedDir.CurrentPath)+"&user="+deletedDir.Owner);
                 if (!(response == 200 || response == 404))
                 {
                     throw new Exception("Error in removing directory");
@@ -123,7 +147,7 @@ namespace NamingServer
             Directories.Remove(deletedName);
         }
 
-        public void RegFile(string name, string size, string storageId)
+        public void RegFile(string name, string size, string storageId, string owner)
         {
             string mainAddress = FileSystem.db.GetStorageAddressById(storageId);
             string filePath;
@@ -135,21 +159,45 @@ namespace NamingServer
             {
                 filePath = CurrentPath + "/" + name;
             }
-            string reserveAddress = FileSystem.db.ChooseStorage(size, storageId);
-            //попробовать загрузить на несколько бэкап серверов и если не получится загрузить только на основной
-            int response=StorageAPI.GetRequest(reserveAddress, "api/name/replicate?path=" + CurrentPath + "&name=" + name + "&target=" + mainAddress);
-            if (response == 200)
+            List<string> excludedId = new List<string>();
+            excludedId.Add(storageId);
+            int response = 0;
+            bool foundReserve = false;
+            string reserveId="";
+            string reserveAddress="";
+            do
             {
-                Files.Add(name, new DirFile(name, mainAddress, size));
+                reserveId = FileSystem.db.ChooseReplicateStorage(size, excludedId);
+                if (reserveId != "")
+                {
+                    reserveAddress = FileSystem.db.GetStorageAddressById(reserveId);
+                    response = StorageAPI.GetRequest(reserveAddress, "api/name/replicate?path=" + FileSystem.GetUserPathFromFull(owner, CurrentPath) + "&name=" + name + "&target=" + mainAddress+"&user="+owner);
+                    if (response == 200)
+                    {
+                        foundReserve = true;
+                        break;
+                    }
+                    else
+                    {
+                        excludedId.Add(reserveId);
+                    }
+                }
+            } while (reserveId != "") ;
+            DirFile file = new DirFile(name, mainAddress);
+            file.Size = size;
+            file.Owner = owner;
+            Files.Add(name, file);
+            if (foundReserve)
+            {
+                FileSystem.db.ExecuteNonQuery("INSERT INTO files(full_path, dir_path, name, addr, size, reserv_addr, owner) VALUES ('" + filePath + "', '" + CurrentPath + "', '" + name + "', '" + mainAddress + "', '" + size + "', '" + reserveAddress + "', '"+owner+"')");
                 Files[name].ReserveAddress = reserveAddress;
-                //обновить размер фри спейс бэкапа
-                FileSystem.db.ExecuteNonQuery("INSERT INTO files(full_path, dir_path, name, addr, size, reserv_addr) VALUES ('" + filePath + "', '" + CurrentPath + "', '" + name + "', '" + mainAddress + "', '" + size + "', '"+reserveAddress+"')");
-                FileSystem.db.ExecuteNonQuery("INSERT INTO file_to_dir(dir_path, file_path) VALUES ('" + CurrentPath + "', '" + filePath + "')");
+                FileSystem.db.UpdateStorageFreeSpace(reserveId, size);
             }
             else
             {
-                throw new Exception("Error in replicating file");
+                FileSystem.db.ExecuteNonQuery("INSERT INTO files(full_path, dir_path, name, addr, size, owner) VALUES ('" + filePath + "', '" + CurrentPath + "', '" + name + "', '" + mainAddress + "', '" + size + "', '"+owner+"')");
             }
+            FileSystem.db.ExecuteNonQuery("INSERT INTO file_to_dir(dir_path, file_path) VALUES ('" + CurrentPath + "', '" + filePath + "')");
         }
 
         public List<string> GetDirStorages(Directory directory)
@@ -184,14 +232,15 @@ namespace NamingServer
             {
                 full_path = CurrentPath + "/" + fileName;
             }
-            int response = StorageAPI.GetRequest(Files[fileName].Address, "api/name/delete?path=" + full_path);
+            string owner = Files[fileName].Owner;
+            int response = StorageAPI.GetRequest(Files[fileName].Address, "api/name/delete?path=" + FileSystem.GetUserPathFromFull(owner, full_path)+"&user="+owner);
             if (!(response == 200 || response == 404))
             {
                 throw new Exception("Error in removing file");
             }
             if (Files[fileName].ReserveAddress!=null)
             {
-                response = StorageAPI.GetRequest(Files[fileName].ReserveAddress, "api/name/delete?path=" + full_path);
+                response = StorageAPI.GetRequest(Files[fileName].ReserveAddress, "api/name/delete?path=" + FileSystem.GetUserPathFromFull(owner, full_path) + "&user=" + owner);
                 if (!(response == 200 || response == 404))
                 {
                     throw new Exception("Error in removing file");
@@ -205,15 +254,15 @@ namespace NamingServer
 
     public class DirFile
     {
-        public DirFile(string name, string address, string size)
+        public DirFile(string name, string address)
         {
             Name = name;
             Address = address;
-            Size = size;
         }
         public string Name { get; set; }
         public string Address { get; set; }
         public string ReserveAddress { get; set; }
         public string Size { get; set; }
+        public string Owner { get; set; }
     }
 }

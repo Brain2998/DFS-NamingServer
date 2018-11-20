@@ -3,6 +3,7 @@ using Nancy;
 using System.Net.Http;
 using System.Net;
 using System.IO;
+using System.Collections.Generic;
 
 namespace NamingServer
 {
@@ -29,7 +30,7 @@ namespace NamingServer
             {
                 try
                 {
-                    Directory directory = FileSystem.GetDirectory(Request.Query["path"]);
+                    Directory directory = FileSystem.GetDirectory(FileSystem.GetFullPathFromUser(Request.Query["user"], Request.Query["path"]));
                     return JsonResponses.GetDirectoryJson(directory);
                 }
                 catch (Exception err)
@@ -42,8 +43,9 @@ namespace NamingServer
             {
                 try
                 {
-                    Directory penDir = FileSystem.GetDirectory(Request.Query["path"]);
-                    penDir.CreateSubDir(Request.Query["name"]);
+                    Directory penDir = FileSystem.GetDirectory(FileSystem.GetFullPathFromUser(Request.Query["user"], Request.Query["path"]));
+                    penDir.CreateSubDir(Request.Query["name"], Request.Query["user"]);
+                    FileSystem.db.Log("DIR CREATE", (Request.Query["path"] + "/" + Request.Query["name"] + "/").Replace("//", "/"), Request.Query["user"]);
                     return 200;
                 }
                 catch (Exception err)
@@ -56,8 +58,9 @@ namespace NamingServer
             {
                 try
                 {
-                    Directory penDir = FileSystem.GetDirectory(Request.Query["path"]);
+                    Directory penDir = FileSystem.GetDirectory(FileSystem.GetFullPathFromUser(Request.Query["user"], Request.Query["path"]));
                     penDir.DeleteSubDir(Request.Query["name"]);
+                    FileSystem.db.Log("DIR DELETE", (Request.Query["path"] + "/" + Request.Query["name"]+"/").Replace("//", "/"), Request.Query["user"]);
                     return 200;
                 }
                 catch (Exception e)
@@ -72,8 +75,8 @@ namespace NamingServer
             Get["/uploadFile"] = param =>
             {
                 try
-                {   
-                    return JsonResponses.GetStorageToUpload(FileSystem.db.ChooseStorage(Request.Query["size"], ""));
+                {
+                    return JsonResponses.GetStorageToUpload(FileSystem.db.GetStorageAddressById(FileSystem.db.ChooseMainStorage(Request.Query["size"])));
                 }
                 catch (Exception err)
                 {
@@ -85,13 +88,44 @@ namespace NamingServer
             {
                 try
                 {
-                    Directory directory = FileSystem.GetDirectory(Request.Query["path"]);
+                    Directory directory = FileSystem.GetDirectory(FileSystem.GetFullPathFromUser(Request.Query["user"], Request.Query["path"]));
                     directory.DeleteFile(Request.Query["name"]);
+                    FileSystem.db.Log("FILE DELETE", (Request.Query["path"] + "/" + Request.Query["name"]).Replace("//", "/"), Request.Query["user"]);
                     return 200;
                 }
                 catch (Exception err)
                 {
                     Console.WriteLine("delFile: " + err.Message);
+                    return 500;
+                }
+            };
+            Get["/regUser"] = param =>
+            {
+                try
+                {
+                    string userName = Request.Query["user"];
+                    if (!FileSystem.db.CheckUserExist(userName))
+                    {
+                        FileSystem.db.ExecuteNonQuery("INSERT INTO users(name) VALUES('" + userName + "')");
+                        FileSystem.root.CreateSubDir(userName, userName);
+                    }
+                    return 200;
+                }
+                catch (Exception err)
+                {
+                    Console.WriteLine("regUser: " + err.Message);
+                    return 500;
+                }
+            };
+            Get["/getLog"] = param =>
+            {
+                try
+                {
+                    return JsonResponses.GetUserLog(Request.Query["user"]);
+                }
+                catch (Exception err)
+                {
+                    Console.WriteLine("getLogError: " + err.Message);
                     return 500;
                 }
             };
@@ -140,13 +174,18 @@ namespace NamingServer
             {
                 try
                 {
-                    Directory dir = FileSystem.GetDirectory(Request.Query["path"]);
-                    dir.RegFile(Request.Query["name"], FileSystem.db.UpdateStorageFreeSpace(Request.Query["id"], Request.Query["free_space"]), Request.Query["id"]);
+                    string serverId = Request.Query["id"];
+                    string fileSize = Request.Query["size"];
+                    string userName = Request.Query["user"];
+                    Directory dir = FileSystem.GetDirectory(FileSystem.GetFullPathFromUser(userName, Request.Query["path"]));
+                    FileSystem.db.UpdateStorageFreeSpace(serverId, fileSize);
+                    dir.RegFile(Request.Query["name"], fileSize, serverId, userName);
+                    FileSystem.db.Log("FILE UPLOAD",(Request.Query["path"]+"/"+Request.Query["name"]).Replace("//","/"),Request.Query["user"]);
                     return 200;
                 }
                 catch (Exception err)
                 {
-                    Console.WriteLine("storageConn: " + err.Message);
+                    Console.WriteLine("fileReg: " + err.Message);
                     return 500;
                 }
             };
